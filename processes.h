@@ -1,6 +1,10 @@
 #ifndef PROCESSES_H
 #define PROCESSES_H
 
+#if defined(__cplusplus)
+extern "C" {
+#endif
+
 #include <stddef.h> // size_t
 
 #define PROCESS_IMPLEMENTATION
@@ -76,9 +80,17 @@ void process_array_resize_by(process_array_t *processes, size_t scaler);
  */
 void process_array_delete(process_array_t *processes);
 
+#if defined(__cplusplus)
+}
+#endif
+
 #endif // PROCESSES_H
 
 #ifdef PROCESSES_IMPLEMENTATION
+
+#if defined(__cplusplus)
+extern "C" {
+#endif
 
 #include <stdlib.h> // malloc, realloc free, exit, NULL
 #include <stdio.h> // fprintf, stderr
@@ -212,5 +224,9 @@ void process_array_delete(process_array_t *processes)
     free(processes);
     processes = NULL;
 }
+
+#if defined(__cplusplus)
+}
+#endif
 
 #endif // PROCESSES_IMPLEMENTATION
