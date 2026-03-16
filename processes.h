@@ -25,7 +25,7 @@ typedef struct
  * @returns A new process array of a fixed capacity.
  * @exception If the process array can not be allocated on the heap, an `AllocationError` is printed to standard error and the programme exits.
  */
-process_array_t *process_array_init();
+process_array_t *process_array_init(void);
 
 /**
  * @brief Construct a new process array of a given capacity.
@@ -105,7 +105,7 @@ extern "C" {
  * @returns A new process array of a fixed capacity.
  * @exception If the process array can not be allocated on the heap, an `AllocationError` is printed to standard error and the programme exits.
  */
-process_array_t *process_array_init()
+process_array_t *process_array_init(void)
 {
     return process_array_init_with_capacity(PROCESS_ARRAY_INITIAL_CAPACITY);
 }
