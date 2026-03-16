@@ -1,6 +1,10 @@
 #ifndef PROCESS_H
 #define PROCESS_H
 
+#if defined(__cplusplus)
+extern "C" {
+#endif
+
 #include <stdbool.h> // bool
 
 #ifdef _WIN32
@@ -39,9 +43,17 @@ bool process_wait(process_t process);
  */
 bool process_invalid(process_t process);
 
+#if defined(__cplusplus)
+}
+#endif
+
 #endif // PROCESS_H
 
 #ifdef PROCESS_IMPLEMENTATION
+
+#if defined(__cplusplus)
+extern "C" {
+#endif
 
 #ifdef _WIN32
 
@@ -100,5 +112,9 @@ bool process_invalid(process_t process)
 {
     return process == INVALID_PROCESS;
 }
+
+#if defined(__cplusplus)
+}
+#endif
 
 #endif // PROCESS_IMPLEMENTATION
