@@ -203,7 +203,7 @@ void process_array_resize(process_array_t *processes)
 void process_array_resize_by(process_array_t *processes, size_t scaler)
 {
     processes->capacity *= scaler;
-    processes->processes = (process_t *)realloc(processes->processes, processes->capacity);
+    processes->processes = (process_t *)realloc(processes->processes, sizeof(process_t *) * processes->capacity);
     if (NULL == processes->processes)
     {
         fprintf(stderr, "AllocationError: Can not reallocate the process array.\n");
