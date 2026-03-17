@@ -50,7 +50,7 @@ void process_array_append(process_array_t *processes, process_t process);
  * @returns A pointer to a process within the given process array at the given index.
  * @exception If the index is greater than the size of the process array, an `OutOfRangeError` is is printed to standard error and the programme exits.
  */
-process_t *process_array_at(const process_array_t *processes, size_t index);
+process_t *process_array_at(process_array_t *processes, size_t index);
 
 /**
  * @brief Wait for an array of processes.
@@ -158,7 +158,7 @@ void process_array_append(process_array_t *processes, process_t process)
  * @returns A pointer to a process within the given process array at the given index.
  * @exception If the index is greater than the size of the process array, an `OutOfRangeError` is is printed to standard error and the programme exits.
  */
-process_t *process_array_at(const process_array_t *processes, size_t index)
+process_t *process_array_at(process_array_t *processes, size_t index)
 {
     if (index >= processes->size)
     {
