@@ -308,7 +308,7 @@ void command_resize(command_t *command)
 void command_resize_by(command_t *command, size_t scaler)
 {
     command->capacity *= scaler;
-    command->items = (char *)realloc(command->items, command->capacity);
+    command->items = (char *)realloc(command->items, sizeof(char *) * command->capacity);
     if (NULL == command->items)
     {
         fprintf(stderr, "AllocationError: Can not resize array.\n");
