@@ -1,0 +1,24 @@
+[project]
+name = "Kada"
+author = {name = "Polshkrev"}
+description = "A build system in c/c++."
+
+[project.version]
+minor = 1
+
+[license]
+type = "MIT"
+path = "LICENSE"
+
+[paths]
+readme = "README.md"
+
+[urls]
+repository = "https://github.com/Polshkrev/Kada"
+lib = "https://github.com/Polshkrev/lib"
+reference = "https://github.com/tsoding/nob.h"
+
+[commands]
+script = ["bin/build"]
+build = ["bin/compile"]
+run = ["bin/run"]
