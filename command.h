@@ -332,26 +332,18 @@ char *win32_error_message(DWORD error)
     {
         if (GetLastError() != ERROR_MR_MID_NOT_FOUND)
         {
-            if (sprintf(win32_error_message, "Could not get error message for 0x%lX", error) > 0)
-            {
-                return (char *)&win32_error_message;
-            }
-            else
+            if (sprintf(win32_error_message, "Could not get error message for 0x%lX", error) <= 0)
             {
                 return NULL;
             }
+            return (char *)&win32_error_message;
         }
-        else
+        else if (sprintf(win32_error_message, "Invalid windows error code (0x%lX)", error) <= 0)
         {
-            if (sprintf(win32_error_message, "Invalid windows error code (0x%lX)", error) > 0)
-            {
-                return (char *)&win32_error_message;
-            }
-            else
-            {
-                return NULL;
-            }
+            return NULL;
         }
+        return (char *)&win32_error_message;
+
     }
     while (error_message_size > 1 && isspace(win32_error_message[error_message_size - 1]))
     {
