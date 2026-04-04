@@ -142,7 +142,7 @@ programme_t *programme_init()
  */
 programme_t *programme_init_with_capacity(size_t capacity)
 {
-    logger_t *logger = logger_new("main", LOG_DEBUG);
+    logger_t *logger = logger_init("main", LOG_DEBUG);
     logger_add_console(logger);
     return programme_init_full(capacity, logger);
 }
