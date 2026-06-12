@@ -16,7 +16,7 @@ typedef struct
     size_t size;
     size_t capacity;
     logger_t *logger;
-    command_t **commands;
+    command_t *commands;
 } programme_t;
 
 /**
@@ -24,7 +24,7 @@ typedef struct
  * @returns A new programme.
  * @exception If the programme can not be allocated, an `AllocationError` is printed to standard error and the programme exits.
  */
-programme_t *programme_init();
+programme_t programme_init();
 
 /**
  * @brief Construct a new programme of a given capacity.
@@ -32,7 +32,7 @@ programme_t *programme_init();
  * @returns A new programme with a given capacity.
  * @exception If the programme can not be allocated, an `AllocationError` is printed to standard error and the programme exits.
  */
-programme_t *programme_init_with_capacity(size_t capacity);
+programme_t programme_init_with_capacity(size_t capacity);
 
 /**
  * @brief Construct a new programme with a logger.
@@ -40,7 +40,7 @@ programme_t *programme_init_with_capacity(size_t capacity);
  * @return A new programme with a given logger.
  * @exception If the programme can not be allocated, an `AllocationError` is printed to standard error and the programme exits.
  */
-programme_t *programme_init_with_logger(logger_t *logger);
+programme_t programme_init_with_logger(logger_t *logger);
 
 /**
  * @brief Fully construct a new programme.
@@ -49,7 +49,7 @@ programme_t *programme_init_with_logger(logger_t *logger);
  * @returns A new programme with a given capacity and logger.
  * @exception If the programme can not be allocated, an `AllocationError` is printed to standard error and the programme exits.
  */
-programme_t *programme_init_full(size_t capacity, logger_t *logger);
+programme_t programme_init_full(size_t capacity, logger_t *logger);
 
 /**
  * @brief Set a given logger to the programme.
@@ -73,7 +73,7 @@ void programme_append(programme_t *programme, command_t *command);
  * @returns The command stored within the programme at the given index.
  * @exception If the given index is greater than the size of the programme, an `OutOfRangeError` is printed to standard error and the programme exits.
  */
-command_t **programme_at(programme_t *programme, size_t index);
+command_t *programme_at(programme_t *programme, size_t index);
 
 /**
  * @brief Run a programme synchronously.
@@ -87,7 +87,7 @@ bool programme_run(programme_t *programme);
  * @param programme Programme to run.
  * @returns An array of each of the processes returned from running the commands.
  */
-process_array_t *programme_run_async(programme_t *programme);
+process_array_t programme_run_async(programme_t *programme);
 
 /**
  * @brief Resize the given programme by a factor of two.
@@ -124,12 +124,14 @@ extern "C" {
 
 #define PROGRAMME_INITIAL_CAPACITY 256
 
+#define DEFAULT_LOGGER_NAME "programme"
+
 /**
  * @brief Construct a new programme.
  * @returns A new programme.
  * @exception If the programme can not be allocated, an `AllocationError` is printed to standard error and the programme exits.
  */
-programme_t *programme_init()
+programme_t programme_init()
 {
     return programme_init_with_capacity(PROGRAMME_INITIAL_CAPACITY);
 }
@@ -140,10 +142,9 @@ programme_t *programme_init()
  * @returns A new programme with a given capacity.
  * @exception If the programme can not be allocated, an `AllocationError` is printed to standard error and the programme exits.
  */
-programme_t *programme_init_with_capacity(size_t capacity)
+programme_t programme_init_with_capacity(size_t capacity)
 {
-    logger_t *logger = logger_init("main", LOG_DEBUG);
-    logger_add_console(logger);
+    logger_t *logger = logger_init(DEFAULT_LOGGER_NAME, LOG_DEBUG);
     return programme_init_full(capacity, logger);
 }
 
@@ -153,7 +154,7 @@ programme_t *programme_init_with_capacity(size_t capacity)
  * @return A new programme with a given logger.
  * @exception If the programme can not be allocated, an `AllocationError` is printed to standard error and the programme exits.
  */
-programme_t *programme_init_with_logger(logger_t *logger)
+programme_t programme_init_with_logger(logger_t *logger)
 {
     return programme_init_full(PROGRAMME_INITIAL_CAPACITY, logger);
 }
@@ -165,27 +166,21 @@ programme_t *programme_init_with_logger(logger_t *logger)
  * @returns A new programme with a given capacity and logger.
  * @exception If the programme can not be allocated, an `AllocationError` is printed to standard error and the programme exits.
  */
-programme_t *programme_init_full(size_t capacity, logger_t *logger)
+programme_t programme_init_full(size_t capacity, logger_t *logger)
 {
-    programme_t *programme = (programme_t *)malloc(sizeof(programme_t));
-    if (NULL == programme)
-    {
-        logger_log(logger, "AllocationError: Can not allocate enough memory for a new programme.\n", LOG_CRITICAL);
-        logger_delete(logger);
-        exit(1);
-    }
-    programme->size = 0;
-    programme->capacity = capacity;
-    programme_set_logger(programme, logger);
-    programme->commands = (command_t **)malloc(sizeof(command_t *) * capacity);
-    if (NULL == programme->commands)
+    command_t *commands = (command_t *)malloc(sizeof(command_t) * capacity);
+    if (NULL == commands)
     {
         logger_log(logger, "AllocationError: Can not allocate a new programme.", LOG_CRITICAL);
-        logger_delete(logger);
-        if (programme) free(programme);
+        logger_close(logger);
         exit(1);
     }
-    return programme;
+    return (programme_t){
+        .size = 0,
+        .capacity = capacity,
+        .logger = logger,
+        .commands = commands
+    };
 }
 
 /**
@@ -210,7 +205,7 @@ void programme_append(programme_t *programme, command_t *command)
     {
         programme_resize(programme);
     }
-    programme->commands[programme->size++] = command;
+    programme->commands[programme->size++] = *command;
 }
 
 /**
@@ -220,7 +215,7 @@ void programme_append(programme_t *programme, command_t *command)
  * @returns The command stored within the programme at the given index.
  * @exception If the given index is greater than the size of the programme, an `OutOfRangeError` is printed to standard error and the programme exits.
  */
-command_t **programme_at(programme_t *programme, size_t index)
+command_t *programme_at(programme_t *programme, size_t index)
 {
     if (index >= programme->size)
     {
@@ -240,7 +235,7 @@ bool programme_run(programme_t *programme)
 {
     for (size_t i = 0; i < programme->size; ++i)
     {
-        if (!command_run_logged(programme->commands[i], programme->logger)) return false;
+        if (!command_run_logged(&programme->commands[i], programme->logger)) return false;
     }
     return true;
 }
@@ -250,12 +245,12 @@ bool programme_run(programme_t *programme)
  * @param programme Programme to run.
  * @returns An array of each of the processes returned from running the commands.
  */
-process_array_t *programme_run_async(programme_t *programme)
+process_array_t programme_run_async(programme_t *programme)
 {
-    process_array_t *processes = process_array_init_with_capacity(programme->size);
+    process_array_t processes = process_array_init_with_capacity(programme->size);
     for (size_t i = 0; i < programme->size; ++i)
     {
-        process_array_append(processes, command_run_async_logged(programme->commands[i], programme->logger));
+        process_array_append(&processes, command_run_async_logged(&programme->commands[i], programme->logger));
     }
     return processes;
 }
@@ -279,7 +274,7 @@ void programme_resize(programme_t *programme)
 void programme_resize_by(programme_t *programme, size_t scaler)
 {
     programme->capacity *= scaler;
-    programme->commands = (command_t **)realloc(programme->commands, sizeof(command_t *) * programme->capacity);
+    programme->commands = (command_t *)realloc(programme->commands, sizeof(command_t) * programme->capacity);
     if (NULL == programme->commands)
     {
         logger_log(programme->logger, "AllocationError: Can not resize the command array.\n", LOG_CRITICAL);
@@ -294,17 +289,14 @@ void programme_resize_by(programme_t *programme, size_t scaler)
  */
 void programme_delete(programme_t *programme)
 {
-    if (!programme) return;
     logger_delete(programme->logger);
     if (!programme->commands) return;
     for (size_t i = 0; i < programme->size; ++i)
     {
-        command_delete(programme->commands[i]);
+        command_delete(&programme->commands[i]);
     }
     free(programme->commands);
     programme->commands = NULL;
-    free(programme);
-    programme = NULL;
 }
 
 #if defined(__cplusplus)
