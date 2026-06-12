@@ -26,7 +26,7 @@ typedef struct
  * @returns A new command with a fixed capacity.
  * @exception If the command can not be allocated on the heap, an `AllocationError` is printed to standard error and the programme exits.
  */
-command_t *command_init(void);
+command_t command_init(void);
 
 /**
  * @brief Construct a new command of a given capacity.
@@ -34,7 +34,7 @@ command_t *command_init(void);
  * @returns A new command with a given capacity.
  * @exception If the command can not be allocated on the heap, an `AllocationError` is printed to standard error and the programme exits.
  */
-command_t *command_init_with_capacity(size_t capacity);
+command_t command_init_with_capacity(size_t capacity);
 
 /**
  * @brief Append a null-terminated string to the command.
@@ -157,7 +157,7 @@ extern "C" {
  * @returns A new command with a fixed capacity.
  * @exception If the command can not be allocated on the heap, an `AllocationError` is printed to standard error and the programme exits.
  */
-command_t *command_init(void)
+command_t command_init(void)
 {
     return command_init_with_capacity(COMMAND_INITIAL_CAPACTIY);
 }
@@ -168,24 +168,20 @@ command_t *command_init(void)
  * @returns A new command with a given capacity.
  * @exception If the command can not be allocated on the heap, an `AllocationError` is printed to standard error and the programme exits.
  */
-command_t *command_init_with_capacity(size_t capacity)
+command_t command_init_with_capacity(size_t capacity)
 {
-    command_t *command = (command_t *)malloc(sizeof(command_t));
-    if (NULL == command)
+    char *commands = (char *)malloc(capacity * sizeof(char));
+    if (NULL == commands)
     {
-        fprintf(stderr, "AllocationError: Can not allocate enough memory for a new command.\n");
+        fprintf(stderr, "AllocationError: Can not allocate enough memory for the array of commands.\n");
         exit(1);
     }
-    command->size = 0;
-    command->capacity = capacity;
-    command->items = (char *)malloc(sizeof(char) * capacity);
-    if (NULL == command->items)
+    return (command_t)
     {
-        fprintf(stderr, "AllocationError: Can not allocate enough memory for a new item array.\n");
-        if (command) free(command);
-        exit(1);
-    }
-    return command;
+        .capacity = capacity,
+        .size = 0,
+        .items = commands
+    };
 }
 
 /**
@@ -448,9 +444,6 @@ void command_delete(command_t *command)
     if (!command->items) return;
     free(command->items);
     command->items = NULL;
-    if (!command) return;
-    free(command);
-    command = NULL;
 }
 
 #if defined(__cplusplus)
