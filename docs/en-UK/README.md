@@ -20,15 +20,15 @@ A "Hello World" in Kada can be defined thusly:
 
 int main(void)
 {
-    command_t *command = command_init();
-    command_append(command, "echo 'Hello World!'");
-    if (!command_run(command))
+    command_t command = command_init();
+    command_append(&command, "echo 'Hello World!'");
+    if (!command_run(&command))
     {
-        fprintf(stderr, "Can not run command: '%s'.\n", command_data(command));
-        command_delete(command);
+        fprintf(stderr, "Can not run command: '%s'.\n", command_data(&command));
+        command_delete(&command);
         return 1;
     }
-    command_delete(command);
+    command_delete(&command);
     return 0;
 }
 ```
