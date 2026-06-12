@@ -25,7 +25,7 @@ typedef struct
  * @returns A new process array of a fixed capacity.
  * @exception If the process array can not be allocated on the heap, an `AllocationError` is printed to standard error and the programme exits.
  */
-process_array_t *process_array_init(void);
+process_array_t process_array_init(void);
 
 /**
  * @brief Construct a new process array of a given capacity.
@@ -33,7 +33,7 @@ process_array_t *process_array_init(void);
  * @returns A new process array of a given capacity.
  * @exception If the process array can not be allocated on the heap, an `AllocationError` is printed to standard error and the programme exits.
  */
-process_array_t *process_array_init_with_capacity(size_t capacity);
+process_array_t process_array_init_with_capacity(size_t capacity);
 
 /**
  * @brief Append a given process to a process array.
@@ -105,7 +105,7 @@ extern "C" {
  * @returns A new process array of a fixed capacity.
  * @exception If the process array can not be allocated on the heap, an `AllocationError` is printed to standard error and the programme exits.
  */
-process_array_t *process_array_init(void)
+process_array_t process_array_init(void)
 {
     return process_array_init_with_capacity(PROCESS_ARRAY_INITIAL_CAPACITY);
 }
@@ -116,24 +116,21 @@ process_array_t *process_array_init(void)
  * @returns A new process array of a given capacity.
  * @exception If the process array can not be allocated on the heap, an `AllocationError` is printed to standard error and the programme exits.
  */
-process_array_t *process_array_init_with_capacity(size_t capacity)
+process_array_t process_array_init_with_capacity(size_t capacity)
 {
-    process_array_t *processes = (process_array_t *)malloc(sizeof(process_array_t));
+    process_t *processes = (process_t *)malloc(sizeof(process_t) * capacity);
     if (NULL == processes)
-    {
-        fprintf(stderr, "AllocationError: Can not allocate enough memory for a new process array.\n");
-        exit(1);
-    }
-    processes->size = 0;
-    processes->capacity = capacity;
-    processes->processes = (process_t *)malloc(sizeof(process_t) * capacity);
-    if (NULL == processes->processes)
     {
         fprintf(stderr, "AllocationError: Can not allocate enough memory for a new process array.\n");
         if (processes) free(processes);
         exit(1);
     }
-    return processes;
+    return (process_array_t)
+    {
+        .size = 0,
+        .capacity = capacity,
+        .processes = processes
+    };
 }
 
 /**
@@ -220,9 +217,6 @@ void process_array_delete(process_array_t *processes)
     if (!processes->processes) return;
     free(processes->processes);
     processes->processes = NULL;
-    if (!processes) return;
-    free(processes);
-    processes = NULL;
 }
 
 #if defined(__cplusplus)
