@@ -4,7 +4,7 @@ author = {name = "Polshkrev"}
 description = "A build system in c/c++."
 
 [project.version]
-minor = 1
+minor = 2
 
 [license]
 type = "MIT"

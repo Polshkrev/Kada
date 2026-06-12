@@ -1,4 +1,8 @@
 # Changelog
+## v0.2.0 - 2026-06-12
+`Changed`
+- C
+    - All structures have been stack allocated where applicable.
 ## v0.1.0 - 2026-04-04: The Initial Update
 `Added`
 - Added `command` module.
