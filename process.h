@@ -28,7 +28,14 @@ typedef int process_t;
  */
 #define INVALID_PROCESS (-1)
 #include <sys/wait.h> // waitpid, WIFEXITED, WEXITSTATUS, WIFSIGNALED
+#include <unistd.h> // getpid
 #endif // _WIN32
+
+/**
+ * @brief Obtain the current process.
+ * @returns A `process_t` representing the current process.
+ */
+process_t current_process(void);
 
 /**
  * @brief Wait on a single given process.
@@ -54,6 +61,19 @@ bool process_invalid(process_t process);
 #if defined(__cplusplus)
 extern "C" {
 #endif
+
+/**
+ * @brief Obtain the current process.
+ * @returns A `process_t` representing the current process.
+ */
+process_t current_process(void)
+{
+#ifdef _WIN32
+    return GetCurrentProcess();
+#else
+    return getpid();
+#endif // _WIN32
+}
 
 #ifdef _WIN32
 
