@@ -8,8 +8,10 @@ extern "C" {
 #include <stdbool.h> // bool
 
 #ifdef _WIN32
-#define WIN32_LEAN_AND_MEAN
-#include <windows.h> // HANDLE, DWORD, INFINITE, WAIT_FAILED, WaitForSingleObject, GetExitCodeProcess, CloseHandle
+#include <windef.h> // HANDLE, DWORD
+#include <processthreadsapi.h> // GetCurrentProcess, WaitForSingleObject, GetExitCodeProcess, CloseHandle
+#include <handleapi.h> // INVALID_HANDLE_VALUE
+#include <winbase.h> // INFINITE, WAIT_FAILED
 /**
  * @brief Representation of a process.
  */
@@ -28,7 +30,14 @@ typedef int process_t;
  */
 #define INVALID_PROCESS (-1)
 #include <sys/wait.h> // waitpid, WIFEXITED, WEXITSTATUS, WIFSIGNALED
+#include <unistd.h> // getpid
 #endif // _WIN32
+
+/**
+ * @brief Obtain the current process.
+ * @returns A `process_t` representing the current process.
+ */
+process_t current_process(void);
 
 /**
  * @brief Wait on a single given process.
@@ -54,6 +63,19 @@ bool process_invalid(process_t process);
 #if defined(__cplusplus)
 extern "C" {
 #endif
+
+/**
+ * @brief Obtain the current process.
+ * @returns A `process_t` representing the current process.
+ */
+process_t current_process(void)
+{
+#ifdef _WIN32
+    return GetCurrentProcess();
+#else
+    return getpid();
+#endif // _WIN32
+}
 
 #ifdef _WIN32
 

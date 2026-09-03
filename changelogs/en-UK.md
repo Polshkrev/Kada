@@ -1,4 +1,10 @@
 # Changelog
+## v0.3.0 - 2026-09-03
+- Updated `lib` dependency.
+
+`Added`
+- `process`
+    - Added the `current_process` function.
 ## v0.2.0 - 2026-06-12
 `Changed`
 - C

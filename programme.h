@@ -6,7 +6,7 @@ extern "C" {
 #endif
 
 #define COMMAND_IMPLEMENTATION
-#include "command.h"
+#include "command.h" // command_t, command_run_logged, command_run_async_logged
 
 /**
  * @brief Representation of a programme.

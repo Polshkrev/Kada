@@ -6,10 +6,10 @@ extern "C" {
 #endif
 
 #define PROCESSES_IMPLEMENTATION
-#include "processes.h"
+#include "processes.h" // process_t, process_wait
 
 #define LOGGER_IMPLEMENTATION
-#include "lib/c/logger.h"
+#include "lib/c/logger.h" // logger_t, logger_log
 
 /**
  * @brief Representation of a system command.
@@ -140,15 +140,13 @@ extern "C" {
 #include <stdarg.h> // va_list, va_start, va_end
 
 #ifdef _WIN32
-#define WIN32_LEAN_AND_MEAN
-#include <windows.h> // DWORD
-#ifndef WIN32_ERROR_MESSAGE_SIZE
-#define WIN32_ERROR_MESSAGE_SIZE (4 * 1024)
-#endif // WIN32_ERROR_MESSAGE_SIZE
+    #ifndef WIN32_ERROR_MESSAGE_SIZE
+    #define WIN32_ERROR_MESSAGE_SIZE (4 * 1024)
+    #endif // WIN32_ERROR_MESSAGE_SIZE
 #endif // _WIN32
 
 #define BUFFER_IMPLEMENTATION
-#include "lib/c/collections/buffer.h"
+#include "lib/c/collections/buffer.h" // buffer_allocate, buffer_save, buffer_rewind
 
 #define COMMAND_INITIAL_CAPACTIY 256
 
