@@ -8,7 +8,7 @@ extern "C" {
 #include <stddef.h> // size_t
 
 #define PROCESS_IMPLEMENTATION
-#include "process.h" // process_t
+#include "process.h" // process_t, process_wait
 
 /**
  * @brief Representation of a process array.
@@ -122,7 +122,6 @@ process_array_t process_array_init_with_capacity(size_t capacity)
     if (NULL == processes)
     {
         fprintf(stderr, "AllocationError: Can not allocate enough memory for a new process array.\n");
-        if (processes) free(processes);
         exit(1);
     }
     return (process_array_t)
