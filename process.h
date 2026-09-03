@@ -8,8 +8,10 @@ extern "C" {
 #include <stdbool.h> // bool
 
 #ifdef _WIN32
-#define WIN32_LEAN_AND_MEAN
-#include <windows.h> // HANDLE, DWORD, INFINITE, WAIT_FAILED, WaitForSingleObject, GetExitCodeProcess, CloseHandle
+#include <windef.h> // HANDLE, DWORD
+#include <processthreadsapi.h> // GetCurrentProcess, WaitForSingleObject, GetExitCodeProcess, CloseHandle
+#include <handleapi.h> // INVALID_HANDLE_VALUE
+#include <winbase.h> // INFINITE, WAIT_FAILED
 /**
  * @brief Representation of a process.
  */
