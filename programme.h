@@ -5,6 +5,9 @@
 extern "C" {
 #endif
 
+#include <stdbool.h> // bool
+#include <stddef.h>  // size_t
+
 #define COMMAND_IMPLEMENTATION
 #include "command.h" // command_t, command_run_logged, command_run_async_logged
 
@@ -16,7 +19,7 @@ typedef struct
     size_t size;
     size_t capacity;
     logger_t *logger;
-    command_t *commands;
+    command_t **commands;
 } programme_t;
 
 /**
@@ -24,7 +27,7 @@ typedef struct
  * @returns A new programme.
  * @exception If the programme can not be allocated, an `AllocationError` is printed to standard error and the programme exits.
  */
-programme_t programme_init();
+programme_t programme_init(void);
 
 /**
  * @brief Construct a new programme of a given capacity.
@@ -71,14 +74,14 @@ void programme_append(programme_t *programme, command_t *command);
  * @param programme Programme to access.
  * @param index Index at which to access a command within the programme.
  * @returns The command stored within the programme at the given index.
- * @exception If the given index is greater than the size of the programme, an `OutOfRangeError` is printed to standard error and the programme exits.
+ * @exception If the given index is greater than or equal to the size of the programme, an `OutOfRangeError` is printed to standard error and the programme exits.
  */
 command_t *programme_at(programme_t *programme, size_t index);
 
 /**
  * @brief Run a programme synchronously.
  * @param programme Programme to run.
- * @returns True is the programme is able to be ran, else false.
+ * @returns True if the programme is able to be ran, else false.
  */
 bool programme_run(programme_t *programme);
 
@@ -97,12 +100,12 @@ process_array_t programme_run_async(programme_t *programme);
 void programme_resize(programme_t *programme);
 
 /**
- * @brief Resize the given programme by a given scaler value.
+ * @brief Resize the given programme by a given scalar value.
  * @param programme Programme to resize.
- * @param scaler Scaler value by which to resize the programme.
+ * @param scalar Scalar value by which to resize the programme.
  * @exception If the programme can not be resized, an `AllocationError` is printed to standard error and the programme exits.
  */
-void programme_resize_by(programme_t *programme, size_t scaler);
+void programme_resize_by(programme_t *programme, size_t scalar);
 
 /**
  * @brief Deallocate the programme.
@@ -122,6 +125,9 @@ void programme_delete(programme_t *programme);
 extern "C" {
 #endif
 
+#include <stdint.h> // SIZE_MAX
+#include <stdlib.h> // malloc, realloc, free, exit, EXIT_FAILURE
+
 #define PROGRAMME_INITIAL_CAPACITY 256
 
 #define DEFAULT_LOGGER_NAME "programme"
@@ -131,7 +137,7 @@ extern "C" {
  * @returns A new programme.
  * @exception If the programme can not be allocated, an `AllocationError` is printed to standard error and the programme exits.
  */
-programme_t programme_init()
+programme_t programme_init(void)
 {
     return programme_init_with_capacity(PROGRAMME_INITIAL_CAPACITY);
 }
@@ -144,8 +150,7 @@ programme_t programme_init()
  */
 programme_t programme_init_with_capacity(size_t capacity)
 {
-    logger_t *logger = logger_init(DEFAULT_LOGGER_NAME, LOG_DEBUG);
-    return programme_init_full(capacity, logger);
+    return programme_init_full(capacity, logger_init(DEFAULT_LOGGER_NAME, LOG_DEBUG));
 }
 
 /**
@@ -168,16 +173,17 @@ programme_t programme_init_with_logger(logger_t *logger)
  */
 programme_t programme_init_full(size_t capacity, logger_t *logger)
 {
-    command_t *commands = (command_t *)malloc(sizeof(command_t) * capacity);
+    size_t clamped_capacity = capacity == 0 ? 1 : capacity;
+    command_t **commands = (command_t **)malloc(sizeof(command_t *) * clamped_capacity);
     if (NULL == commands)
     {
         logger_log(logger, "AllocationError: Can not allocate a new programme.", LOG_CRITICAL);
         logger_close(logger);
-        exit(1);
+        exit(EXIT_FAILURE);
     }
     return (programme_t){
         .size = 0,
-        .capacity = capacity,
+        .capacity = clamped_capacity,
         .logger = logger,
         .commands = commands
     };
@@ -205,7 +211,7 @@ void programme_append(programme_t *programme, command_t *command)
     {
         programme_resize(programme);
     }
-    programme->commands[programme->size++] = *command;
+    programme->commands[programme->size++] = command;
 }
 
 /**
@@ -213,29 +219,29 @@ void programme_append(programme_t *programme, command_t *command)
  * @param programme Programme to access.
  * @param index Index at which to access a command within the programme.
  * @returns The command stored within the programme at the given index.
- * @exception If the given index is greater than the size of the programme, an `OutOfRangeError` is printed to standard error and the programme exits.
+ * @exception If the given index is greater than or equal to the size of the programme, an `OutOfRangeError` is printed to standard error and the programme exits.
  */
 command_t *programme_at(programme_t *programme, size_t index)
 {
     if (index >= programme->size)
     {
-        logger_log(programme->logger, "OutOfRangeError: Can not access array outside of bounds.\n", LOG_CRITICAL);
+        logger_log(programme->logger, "OutOfRangeError: Can not access array outside of bounds.", LOG_CRITICAL);
         programme_delete(programme);
-        exit(1);
+        exit(EXIT_FAILURE);
     }
-    return &programme->commands[index];
+    return programme->commands[index];
 }
 
 /**
  * @brief Run a programme synchronously.
  * @param programme Programme to run.
- * @returns True is the programme is able to be ran, else false.
+ * @returns True if the programme is able to be ran, else false.
  */
 bool programme_run(programme_t *programme)
 {
-    for (size_t i = 0; i < programme->size; ++i)
+    for (size_t index = 0; index < programme->size; ++index)
     {
-        if (!command_run_logged(&programme->commands[i], programme->logger)) return false;
+        if (!command_run_logged(programme->commands[index], programme->logger)) return false;
     }
     return true;
 }
@@ -250,7 +256,7 @@ process_array_t programme_run_async(programme_t *programme)
     process_array_t processes = process_array_init_with_capacity(programme->size);
     for (size_t i = 0; i < programme->size; ++i)
     {
-        process_array_append(&processes, command_run_async_logged(&programme->commands[i], programme->logger));
+        process_array_append(&processes, command_run_async_logged(programme->commands[i], programme->logger));
     }
     return processes;
 }
@@ -266,20 +272,27 @@ void programme_resize(programme_t *programme)
 }
 
 /**
- * @brief Resize the given programme by a given scaler value.
+ * @brief Resize the given programme by a given scalar value.
  * @param programme Programme to resize.
- * @param scaler Scaler value by which to resize the programme.
+ * @param scalar Scalar value by which to resize the programme.
  * @exception If the programme can not be resized, an `AllocationError` is printed to standard error and the programme exits.
  */
-void programme_resize_by(programme_t *programme, size_t scaler)
+void programme_resize_by(programme_t *programme, size_t scalar)
 {
-    programme->capacity *= scaler;
-    programme->commands = (command_t *)realloc(programme->commands, sizeof(command_t) * programme->capacity);
+    if (scalar < 2) return;
+    else if (programme->capacity > (SIZE_MAX / scalar))
+    {
+        logger_log(programme->logger, "OverflowError: The capacity has overflown its type.", LOG_CRITICAL);
+        programme_delete(programme);
+        exit(EXIT_FAILURE);
+    }
+    programme->capacity *= scalar;
+    programme->commands = (command_t **)realloc(programme->commands, programme->capacity * sizeof(command_t *));
     if (NULL == programme->commands)
     {
-        logger_log(programme->logger, "AllocationError: Can not resize the command array.\n", LOG_CRITICAL);
+        logger_log(programme->logger, "AllocationError: Can not reallocate the process array.", LOG_CRITICAL);
         programme_delete(programme);
-        exit(1);
+        exit(EXIT_FAILURE);
     }
 }
 
@@ -289,14 +302,16 @@ void programme_resize_by(programme_t *programme, size_t scaler)
  */
 void programme_delete(programme_t *programme)
 {
-    logger_delete(programme->logger);
+    logger_delete(&programme->logger);
     if (!programme->commands) return;
     for (size_t i = 0; i < programme->size; ++i)
     {
-        command_delete(&programme->commands[i]);
+        command_delete(programme->commands[i]);
     }
     free(programme->commands);
     programme->commands = NULL;
+    programme->capacity = 0;
+    programme->size = 0;
 }
 
 #if defined(__cplusplus)
