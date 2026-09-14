@@ -218,6 +218,10 @@ void process_array_resize_by(process_array_t *processes, size_t scaler)
 void process_array_delete(process_array_t *processes)
 {
     if (!processes->processes) return;
+    for (size_t i = 0; i < processes->size; ++i)
+    {
+        if (!process_close(processes->processes[i])) return;
+    }
     free(processes->processes);
     processes->processes = NULL;
     processes->capacity = 0;
