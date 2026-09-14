@@ -1,5 +1,5 @@
-#ifndef PROCESSES_H
-#define PROCESSES_H
+#ifndef PROCESSES_H_
+#define PROCESSES_H_
 
 #if defined(__cplusplus)
 extern "C" {
@@ -48,13 +48,13 @@ void process_array_append(process_array_t *processes, process_t process);
  * @param processes Process array to access.
  * @param index Index at which to access the process array.
  * @returns A pointer to a process within the given process array at the given index.
- * @exception If the index is greater than the size of the process array, an `OutOfRangeError` is is printed to standard error and the programme exits.
+ * @exception If the index is greater than or equal to the size of the process array, an `OutOfRangeError` is printed to standard error and the programme exits.
  */
 process_t *process_array_at(process_array_t *processes, size_t index);
 
 /**
  * @brief Wait for an array of processes.
- * @param processes Processes array on which to wait.
+ * @param processes Processes on which to wait.
  * @returns True if each of the processes within the array can be successfully waited on, else false.
  */
 bool process_array_wait(process_array_t *processes);
@@ -62,7 +62,7 @@ bool process_array_wait(process_array_t *processes);
 /**
  * @brief Resize a given process array by a factor of two.
  * @param processes Process array to resize.
- * @exception If the process array can not be reallocated, an `AllocationError` is is printed to standard error and the programme exits.
+ * @exception If the process array can not be reallocated, an `AllocationError` is printed to standard error and the programme exits.
  */
 void process_array_resize(process_array_t *processes);
 
@@ -70,7 +70,7 @@ void process_array_resize(process_array_t *processes);
  * @brief Resize a given process array by a given scaler value.
  * @param processes Process array to resize.
  * @param scaler Scaler value by which to resize the process array.
- * @exception If the process array can not be reallocated, an `AllocationError` is is printed to standard error and the programme exits.
+ * @exception If the process array can not be reallocated, an `AllocationError` is printed to standard error and the programme exits.
  */
 void process_array_resize_by(process_array_t *processes, size_t scaler);
 
@@ -84,7 +84,7 @@ void process_array_delete(process_array_t *processes);
 }
 #endif
 
-#endif // PROCESSES_H
+#endif // PROCESSES_H_
 
 #ifdef PROCESSES_IMPLEMENTATION
 
@@ -118,7 +118,8 @@ process_array_t process_array_init(void)
  */
 process_array_t process_array_init_with_capacity(size_t capacity)
 {
-    process_t *processes = (process_t *)malloc(sizeof(process_t) * capacity);
+    size_t clamped_capacity = capacity == 0 ? 1 : capacity;
+    process_t *processes = (process_t *)malloc(sizeof(process_t) * clamped_capacity);
     if (NULL == processes)
     {
         fprintf(stderr, "AllocationError: Can not allocate enough memory for a new process array.\n");
@@ -127,7 +128,7 @@ process_array_t process_array_init_with_capacity(size_t capacity)
     return (process_array_t)
     {
         .size = 0,
-        .capacity = capacity,
+        .capacity = clamped_capacity,
         .processes = processes
     };
 }
@@ -152,22 +153,17 @@ void process_array_append(process_array_t *processes, process_t process)
  * @param processes Process array to access.
  * @param index Index at which to access the process array.
  * @returns A pointer to a process within the given process array at the given index.
- * @exception If the index is greater than the size of the process array, an `OutOfRangeError` is is printed to standard error and the programme exits.
+ * @exception If the index is greater than or equal to the size of the process array, an `OutOfRangeError` is printed to standard error and the programme exits.
  */
 process_t *process_array_at(process_array_t *processes, size_t index)
 {
-    if (index >= processes->size)
-    {
-        fprintf(stderr, "OutOfRangeError: Can not access array of size %zu at index %zu.\n", processes->size, index);
-        process_array_delete(processes);
-        exit(1);
-    }
+    if (index >= processes->size) return NULL;
     return &processes->processes[index];
 }
 
 /**
  * @brief Wait for an array of processes.
- * @param processes Processes array on which to wait.
+ * @param processes Processes on which to wait.
  * @returns True if each of the processes within the array can be successfully waited on, else false.
  */
 bool process_array_wait(process_array_t *processes)
@@ -175,7 +171,7 @@ bool process_array_wait(process_array_t *processes)
     bool success = true;
     for (size_t i = 0; i < processes->size; ++i)
     {
-        success = process_wait(*process_array_at(processes, i)) && success;
+        success = process_wait(processes->processes[i]) && success;
     }
     return success;
 }
@@ -183,7 +179,7 @@ bool process_array_wait(process_array_t *processes)
 /**
  * @brief Resize a given process array by a factor of two.
  * @param processes Process array to resize.
- * @exception If the process array can not be reallocated, an `AllocationError` is is printed to standard error and the programme exits.
+ * @exception If the process array can not be reallocated, an `AllocationError` is printed to standard error and the programme exits.
  */
 void process_array_resize(process_array_t *processes)
 {
@@ -194,16 +190,24 @@ void process_array_resize(process_array_t *processes)
  * @brief Resize a given process array by a given scaler value.
  * @param processes Process array to resize.
  * @param scaler Scaler value by which to resize the process array.
- * @exception If the process array can not be reallocated, an `AllocationError` is is printed to standard error and the programme exits.
+ * @exception If the process array can not be reallocated, an `AllocationError` is printed to standard error and the programme exits.
  */
 void process_array_resize_by(process_array_t *processes, size_t scaler)
 {
+    if (scaler < 2) return;
+    else if (processes->capacity > (SIZE_MAX / scaler))
+    {
+        fprintf(stderr, "OverflowError: The capacity has overflown its type.\n");
+        process_array_delete(processes);
+        exit(1);
+    }
     processes->capacity *= scaler;
-    processes->processes = (process_t *)realloc(processes->processes, sizeof(process_t *) * processes->capacity);
+    processes->processes = (process_t *)realloc(processes->processes, processes->capacity * sizeof(process_t));
     if (NULL == processes->processes)
     {
         fprintf(stderr, "AllocationError: Can not reallocate the process array.\n");
         process_array_delete(processes);
+        exit(1);
     }
 }
 
@@ -216,6 +220,8 @@ void process_array_delete(process_array_t *processes)
     if (!processes->processes) return;
     free(processes->processes);
     processes->processes = NULL;
+    processes->capacity = 0;
+    processes->size = 0;
 }
 
 #if defined(__cplusplus)
