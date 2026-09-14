@@ -191,7 +191,8 @@ command_t command_init(void)
  */
 command_t command_init_with_capacity(size_t capacity)
 {
-    char *commands = (char *)malloc(capacity * sizeof(char));
+    size_t clamped_capacity = capacity == 0 ? 1 : capacity;
+    char *commands = (char *)malloc(clamped_capacity * sizeof(char));
     if (NULL == commands)
     {
         fprintf(stderr, "AllocationError: Can not allocate enough memory for the array of commands.\n");
@@ -199,7 +200,7 @@ command_t command_init_with_capacity(size_t capacity)
     }
     return (command_t)
     {
-        .capacity = capacity,
+        .capacity = clamped_capacity,
         .size = 0,
         .items = commands
     };
@@ -486,7 +487,9 @@ process_t command_run_async_logged(command_t *command, const logger_t *logger)
  */
 bool command_run(command_t *command)
 {
-    return process_wait(command_run_async(command));
+    process_t process = command_run_async(command);
+    if (!process_wait(process)) return false;
+    return process_close(process);
 }
 
 /**
