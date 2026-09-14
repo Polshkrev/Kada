@@ -5,8 +5,11 @@
 extern "C" {
 #endif
 
+#include <stddef.h> // size_t
+#include <stdbool.h> // bool
+
 #define PROCESSES_IMPLEMENTATION
-#include "processes.h" // process_t, process_wait
+#include "processes.h" // process_t, process_wait, process_close
 
 #define LOGGER_IMPLEMENTATION
 #include "lib/c/logger.h" // logger_t, logger_log
@@ -48,6 +51,7 @@ void command_append(command_t *command, const char *string);
  * @brief Append a formatted string to a command.
  * @param command Command to which to append.
  * @param format Format string from which to append.
+ * @exception If the command can not be reallocated, an `AllocationError` is printed to standard error and the programme exits.
  */
 void command_appendf(command_t *command, const char *format, ...);
 
@@ -56,7 +60,7 @@ void command_appendf(command_t *command, const char *format, ...);
  * @param command Command to access.
  * @param index Index at which to access the command.
  * @returns A pointer to the character stored within the command at a given index.
- * @exception If the index is greater than the size of the command, an `OutOfRangeError` is is printed to standard error and the programme exits.
+ * @exception If the index is greater than or equal to the size of the command, an `IndexError` is printed to standard error and the programme exits.
  */
 char *command_at(command_t *command, size_t index);
 
@@ -77,47 +81,58 @@ char *command_items(const command_t *command);
 /**
  * @brief Run a command asynchronously.
  * @param command Command to run.
- * @returns True if the command has ran successfully, else false.
+ * @returns A handle to the process of the command.
+ * @returns If the command could not run, `INVALID_PROCESS` is returned.
  */
 process_t command_run_async(command_t *command);
 
 /**
  * @brief Run a command asynchronously logged.
  * @param command Command to run.
- * @param logger Logger from which to read.
- * @returns True if the command has ran successfully, else false.
+ * @param logger Logger with which to log the command.
+ * @returns A handle to the process of the command.
+ * @returns If the command could not run, `INVALID_PROCESS` is returned.
  */
 process_t command_run_async_logged(command_t *command, const logger_t *logger);
 
 /**
  * @brief Run a command synchronously.
  * @param command Command to run.
- * @returns True if the command has ran successfully, else false.
+ * @returns True if the command has run successfully, else false.
  */
 bool command_run(command_t *command);
 
 /**
  * @brief Run a command synchronously logged.
  * @param command Command to run.
- * @param logger Logger from which to read.
- * @returns True if the command has ran successfully, else false.
+ * @param logger Logger with which to log the command.
+ * @returns True if the command has run successfully, else false.
  */
 bool command_run_logged(command_t *command, const logger_t *logger);
 
 /**
  * @brief Resize the command by a factor of two.
  * @param command Command to resize.
- * @exception If the command can not be reallocated, an `AllocationError` is is printed to standard error and the programme exits.
+ * @exception If the command can not be reallocated, an `AllocationError` is printed to standard error and the programme exits.
  */
 void command_resize(command_t *command);
 
 /**
- * @brief Resize the command by a given scaler value.
+ * @brief Resize the command by a given scalar value.
  * @param command Command to resize.
- * @param scaler Scaler value by which to resize the command.
- * @exception If the command can not be reallocated, an `AllocationError` is is printed to standard error and the programme exits.
+ * @param scalar Scalar value by which to resize the command.
+ * @exception If the command can not be reallocated, an `AllocationError` is printed to standard error and the programme exits.
  */
-void command_resize_by(command_t *command, size_t scaler);
+void command_resize_by(command_t *command, size_t scalar);
+
+/**
+ * @brief Ensure that a command has a given capacity.
+ * @param command Command to reserve.
+ * @param capacity Minimum capacity required.
+ * @exception If the command can not be reallocated, an `AllocationError`
+ *            is printed to standard error and the programme exits.
+ */
+void command_reserve(command_t *command, size_t capacity);
 
 /**
  * @brief Deallocate the command.
@@ -137,18 +152,26 @@ void command_delete(command_t *command);
 extern "C" {
 #endif
 
-#include <stdarg.h> // va_list, va_start, va_end
+#include <stdlib.h> // malloc, realloc, free, exit, EXIT_FAILURE
+#include <stdio.h> // fprintf, vsnprintf, sprintf
+#include <string.h> // strlen
+#include <stdarg.h> // va_list, va_start, va_end, va_copy
+#include <stdint.h> // SIZE_MAX
+#include <ctype.h> // isspace
 
 #ifdef _WIN32
-    #ifndef WIN32_ERROR_MESSAGE_SIZE
-    #define WIN32_ERROR_MESSAGE_SIZE (4 * 1024)
-    #endif // WIN32_ERROR_MESSAGE_SIZE
+    #include <winnt.h> // HANDLE, DWORD
+    #include <minwinbase.h> // ZeroMemory, FormatMessage, FORMAT_MESSAGE_FROM_SYSTEM, FORMAT_MESSAGE_IGNORE_INSERTS, LANG_USER_DEFAULT
+    #include <winerror.h> // ERROR_MR_MID_NOT_FOUND
+    #include <handleapi.h> // GetStdHandle, STD_OUTPUT_HANDLE, STD_INPUT_HANDLE, STD_ERROR_HANDLE, INVALID_HANDLE_VALUE
+    #include <processthreadsapi.h> // STARTUPINFO, PROCESS_INFORMATION, CreateProcess
+    #include <errhandlingapi.h> // GetLastError
 #endif // _WIN32
 
 #define BUFFER_IMPLEMENTATION
 #include "lib/c/collections/buffer.h" // buffer_allocate, buffer_save, buffer_rewind
 
-#define COMMAND_INITIAL_CAPACTIY 256
+#define COMMAND_INITIAL_CAPACITY 256
 
 /**
  * @brief Construct a new command with a fixed capacity.
@@ -157,7 +180,7 @@ extern "C" {
  */
 command_t command_init(void)
 {
-    return command_init_with_capacity(COMMAND_INITIAL_CAPACTIY);
+    return command_init_with_capacity(COMMAND_INITIAL_CAPACITY);
 }
 
 /**
@@ -172,7 +195,7 @@ command_t command_init_with_capacity(size_t capacity)
     if (NULL == commands)
     {
         fprintf(stderr, "AllocationError: Can not allocate enough memory for the array of commands.\n");
-        exit(1);
+        exit(EXIT_FAILURE);
     }
     return (command_t)
     {
@@ -186,9 +209,9 @@ command_t command_init_with_capacity(size_t capacity)
  * @brief Internal charactrer appendation function.
  * @param command Command to which to append.
  * @param item Item to append to the command.
- * @exception If the command can not be reallocated, an `AllocationError` is is printed to standard error and the programme exits.
+ * @exception If the command can not be reallocated, an `AllocationError` is printed to standard error and the programme exits.
  */
-void _command_append(command_t *command, char item)
+static void _command_append(command_t *command, char item)
 {
     if (command->size >= command->capacity)
     {
@@ -216,32 +239,41 @@ void command_append(command_t *command, const char *string)
  * @brief Append a formatted string to a command.
  * @param command Command to which to append.
  * @param format Format string from which to append.
+ * @exception If the command can not be reallocated, an `AllocationError` is printed to standard error and the programme exits.
  */
 void command_appendf(command_t *command, const char *format, ...)
 {
     va_list arguments;
     va_start(arguments, format);
-    int n = vsnprintf(NULL, 0, format, arguments);
-    va_end(arguments);
-    if (n < 0)
+    va_list copy;
+    va_copy(copy, arguments);
+    int size = vsnprintf(NULL, 0, format, copy);
+    va_end(copy);
+
+    if (size < 0)
     {
-        fprintf(stderr, "AllocationError: 'vsnprintf' has failed.\n");
+        va_end(arguments);
+        fprintf(stderr, "ValueError: 'vsnprintf' has failed.\n");
         command_delete(command);
-        exit(1);
+        exit(EXIT_FAILURE);
     }
-    size_t checkpoint = buffer_save();
-    char *result = buffer_allocate(n + 1);
-    if (NULL == result)
+    else if ((size_t)size > SIZE_MAX - command->size - 1)
     {
-        fprintf(stderr, "AllocationError: Can not allocate enough memory to append a formatted string.\n");
+        va_end(arguments);
+
+        fprintf(stderr, "OverflowError: Command size has overflowed its type.\n");
+
         command_delete(command);
-        exit(1);
+        exit(EXIT_FAILURE);
     }
-    va_start(arguments, format);
-    vsnprintf(result, n + 1, format, arguments);
+
+    command_reserve(command, command->size + (size_t)size + 1);
+
+    vsnprintf(command->items + command->size, (size_t)size + 1, format, arguments);
+
     va_end(arguments);
-    command_append(command, result);
-    buffer_rewind(checkpoint);
+
+    command->size += (size_t)size;
 }
 
 /**
@@ -249,7 +281,7 @@ void command_appendf(command_t *command, const char *format, ...)
  * @param command Command to access.
  * @param index Index at which to access the command.
  * @returns A pointer to the character stored within the command at a given index.
- * @exception If the index is greater than the size of the command, an `OutOfRangeError` is is printed to standard error and the programme exits.
+ * @exception If the index is greater than or equal to the size of the command, an `IndexError` is printed to standard error and the programme exits.
  */
 char *command_at(command_t *command, size_t index)
 {
@@ -257,7 +289,7 @@ char *command_at(command_t *command, size_t index)
     {
         fprintf(stderr, "IndexError: Can not access array of size %zu at index %zu.\n", command->size, index);
         command_delete(command);
-        exit(1);
+        exit(EXIT_FAILURE);
     }
     return &command->items[index];
 }
@@ -269,8 +301,12 @@ char *command_at(command_t *command, size_t index)
  */
 const char *command_data(command_t *command)
 {
-    _command_append(command, '\0');
-    return command_items(command);
+    if (command->size >= command->capacity)
+    {
+        command_resize(command);
+    }
+    command->items[command->size] = '\0';
+    return command->items;
 }
 
 /**
@@ -286,7 +322,7 @@ char *command_items(const command_t *command)
 /**
  * @brief Resize the command by a factor of two.
  * @param command Command to resize.
- * @exception If the command can not be reallocated, an `AllocationError` is is printed to standard error and the programme exits.
+ * @exception If the command can not be reallocated, an `AllocationError` is printed to standard error and the programme exits.
  */
 void command_resize(command_t *command)
 {
@@ -294,55 +330,88 @@ void command_resize(command_t *command)
 }
 
 /**
- * @brief Resize the command by a given scaler value.
+ * @brief Resize the command by a given scalar value.
  * @param command Command to resize.
- * @param scaler Scaler value by which to resize the command.
- * @exception If the command can not be reallocated, an `AllocationError` is is printed to standard error and the programme exits.
+ * @param scalar Scalar value by which to resize the command.
+ * @exception If the command can not be reallocated, an `AllocationError` is printed to standard error and the programme exits.
  */
-void command_resize_by(command_t *command, size_t scaler)
+void command_resize_by(command_t *command, size_t scalar)
 {
-    command->capacity *= scaler;
-    command->items = (char *)realloc(command->items, sizeof(char *) * command->capacity);
+    if (scalar < 2) return;
+    else if (command->capacity > (SIZE_MAX / scalar))
+    {
+        fprintf(stderr, "OverflowError: The capacity has overflown its type.\n");
+        command_delete(command);
+        exit(EXIT_FAILURE);
+    }
+    command->capacity *= scalar;
+    command->items = (char *)realloc(command->items, command->capacity * sizeof(char));
     if (NULL == command->items)
     {
-        fprintf(stderr, "AllocationError: Can not resize array.\n");
+        fprintf(stderr, "AllocationError: Can not reallocate the process array.\n");
         command_delete(command);
-        exit(1);
+        exit(EXIT_FAILURE);
     }
 }
 
+/**
+ * @brief Ensure that a command has a given capacity.
+ * @param command Command to reserve.
+ * @param capacity Minimum capacity required.
+ * @exception If the requested capacity overflows, an `OverflowError` is printed to standard error and the programme exits.
+ * @exception If the command can not be reallocated, an `AllocationError` is printed to standard error and the programme exits.
+ */
+void command_reserve(command_t *command, size_t capacity)
+{
+    if (capacity <= command->capacity) return;
+
+    if (capacity > SIZE_MAX / sizeof(*command->items))
+    {
+        fprintf(stderr, "OverflowError: The command capacity has overflowed its type.\n");
+        command_delete(command);
+        exit(EXIT_FAILURE);
+    }
+
+    char *items = realloc(command->items, capacity * sizeof(*command->items));
+
+    if (NULL == items)
+    {
+        fprintf(stderr, "AllocationError: Can not reserve %zu bytes for command.\n", capacity);
+
+        command_delete(command);
+        exit(EXIT_FAILURE);
+    }
+
+    command->items = items;
+    command->capacity = capacity;
+}
+
 #ifdef _WIN32
+#ifndef WIN32_COMMAND_ERROR_MESSAGE_SIZE
+#define WIN32_COMMAND_ERROR_MESSAGE_SIZE (4 * 1024)
+#endif // WIN32_COMMAND_ERROR_MESSAGE_SIZE
 
 /**
  * @brief Format a windows error code as a string.
  * @param error Error code to format.
  * @returns The given error code formatted as a string.
  */
-char *win32_error_message(DWORD error)
+static char *__command_error_message_windows(DWORD error)
 {
-    static char win32_error_message[WIN32_ERROR_MESSAGE_SIZE] = {0};
-    DWORD error_message_size = FormatMessageA(FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS, NULL, error, LANG_USER_DEFAULT, win32_error_message, WIN32_ERROR_MESSAGE_SIZE, NULL);
+    static _Thread_local char win32_error_message[WIN32_COMMAND_ERROR_MESSAGE_SIZE] = {0};
+    DWORD error_message_size = FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS, NULL, error, LANG_USER_DEFAULT, win32_error_message, WIN32_COMMAND_ERROR_MESSAGE_SIZE, NULL);
     if (error_message_size == 0)
     {
         if (GetLastError() != ERROR_MR_MID_NOT_FOUND)
         {
-            if (sprintf(win32_error_message, "Could not get error message for 0x%lX", error) <= 0)
-            {
-                return NULL;
-            }
-            return (char *)&win32_error_message;
+            if (sprintf(win32_error_message, "Could not get error message for 0x%lX", error) <= 0) return NULL;
+            return win32_error_message;
         }
-        else if (sprintf(win32_error_message, "Invalid windows error code (0x%lX)", error) <= 0)
-        {
-            return NULL;
-        }
-        return (char *)&win32_error_message;
+        else if (sprintf(win32_error_message, "Invalid windows error code (0x%lX)", error) <= 0) return NULL;
+        return win32_error_message;
 
     }
-    while (error_message_size > 1 && isspace(win32_error_message[error_message_size - 1]))
-    {
-        win32_error_message[--error_message_size] = '\0';
-    }
+    while (error_message_size > 1 && isspace(win32_error_message[error_message_size - 1])) { win32_error_message[--error_message_size] = '\0'; }
     return win32_error_message;
 }
 
@@ -353,14 +422,14 @@ char *win32_error_message(DWORD error)
  * @returns A checked handle.
  * @exception If the given handle is invalid, a `ValueError` is printed to standard error and the programme exits.
  */
-HANDLE _check_handle(DWORD handle, command_t *command)
+static HANDLE _check_handle(DWORD handle, command_t *command)
 {
     HANDLE result = GetStdHandle(handle);
     if (INVALID_HANDLE_VALUE == result || NULL == result)
     {
-        fprintf(stderr, "ValueError: Can not access handle. %s\n", win32_error_message(GetLastError()));
+        fprintf(stderr, "ValueError: Can not access handle. %s\n", __command_error_message_windows(GetLastError()));
         command_delete(command);
-        exit(1);
+        exit(EXIT_FAILURE);
     }
     return result;
 }
@@ -370,11 +439,12 @@ HANDLE _check_handle(DWORD handle, command_t *command)
 /**
  * @brief Run a command asynchronously.
  * @param command Command to run.
- * @returns True if the command has ran successfully, else false.
+ * @returns A handle to the process of the command.
+ * @returns If the command could not run, `INVALID_PROCESS` is returned.
  */
 process_t command_run_async(command_t *command)
 {
-    if (command->size < 1) return INVALID_PROCESS;
+    if (command->size == 0) return INVALID_PROCESS;
 #ifdef _WIN32
     STARTUPINFO start_info;
     ZeroMemory(&start_info, sizeof(start_info));
@@ -385,10 +455,9 @@ process_t command_run_async(command_t *command)
     start_info.dwFlags |= STARTF_USESTDHANDLES;
     PROCESS_INFORMATION process_info;
     ZeroMemory(&process_info, sizeof(PROCESS_INFORMATION));
-    _command_append(command, '\0');
-    BOOL success = CreateProcessA(NULL, command_items(command), NULL, NULL, TRUE, 0, NULL, NULL, &start_info, &process_info);
+    BOOL success = CreateProcess(NULL, command_items(command), NULL, NULL, TRUE, 0, NULL, NULL, &start_info, &process_info);
     if (!success) return INVALID_PROCESS;
-    CloseHandle(process_info.hThread);
+    else if (!process_close(process_info.hThread)) return INVALID_PROCESS;
     return process_info.hProcess;
 #else
 #error "NotImplementedError: The linux implementation of 'command_run_async' has not been implemented yet."
@@ -398,8 +467,9 @@ process_t command_run_async(command_t *command)
 /**
  * @brief Run a command asynchronously logged.
  * @param command Command to run.
- * @param logger Logger from which to read.
- * @returns True if the command has ran successfully, else false.
+ * @param logger Logger with which to log the command.
+ * @returns A handle to the process of the command.
+ * @returns If the command could not run, `INVALID_PROCESS` is returned.
  */
 process_t command_run_async_logged(command_t *command, const logger_t *logger)
 {
@@ -412,7 +482,7 @@ process_t command_run_async_logged(command_t *command, const logger_t *logger)
 /**
  * @brief Run a command synchronously.
  * @param command Command to run.
- * @returns True if the command has ran successfully, else false.
+ * @returns True if the command has run successfully, else false.
  */
 bool command_run(command_t *command)
 {
@@ -422,8 +492,8 @@ bool command_run(command_t *command)
 /**
  * @brief Run a command synchronously logged.
  * @param command Command to run.
- * @param logger Logger from which to read.
- * @returns True if the command has ran successfully, else false.
+ * @param logger Logger with which to log the command.
+ * @returns True if the command has run successfully, else false.
  */
 bool command_run_logged(command_t *command, const logger_t *logger)
 {
@@ -442,6 +512,8 @@ void command_delete(command_t *command)
     if (!command->items) return;
     free(command->items);
     command->items = NULL;
+    command->capacity = 0;
+    command->size = 0;
 }
 
 #if defined(__cplusplus)
